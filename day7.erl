@@ -1,6 +1,7 @@
 -module(day7).
 
 -export([part1/0]).
+-export([part2/0]).
 
 -record(entry, {
     command     :: binary(),
@@ -14,10 +15,21 @@
     is_dir = false :: boolean()
 }).
 
+-define(TOTAL, 70000000).
+-define(REQUIERED, 30000000).
+
 part1() ->
     {ok, Input} = file:read_file("day7.input"),
     lists:foldl(fun add_small_dir_size/2, 0,
         calulate_dir_sizes(play(parse(Input)))).
+
+part2() ->
+    {ok, Input} = file:read_file("day7.input"),
+    {Dirs, Occupied} = calulate_sizes(play(parse(Input))),
+    Available = ?TOTAL - Occupied,
+    NeedToFree = ?REQUIERED - Available,
+    {value, #node{size = Size}} = pick_dir(Dirs, NeedToFree),
+    Size.
 
 parse(Input) ->
     parse(Input, []).
@@ -60,6 +72,12 @@ build_node(Line, CurrentDir) ->
             #node{parts = Parts, path = Path, size = binary_to_integer(Number)}
     end.
 
+calulate_sizes(Nodes) ->
+    {DirsWithoutSizes, Files} = lists:partition(fun(#node{is_dir = IsDir}) -> IsDir end, Nodes),
+    DirsWithSizes = lists:map(fun(Dir) -> calulate_dir_size(Dir, Files) end, DirsWithoutSizes),
+    TotalSize = lists:foldl(fun(#node{size = Size}, Acc) -> Size + Acc end, 0, Files),
+    {DirsWithSizes, TotalSize}.
+
 calulate_dir_sizes(Nodes) ->
     {Dirs, Files} = lists:partition(fun(#node{is_dir = IsDir}) -> IsDir end, Nodes),
     lists:map(fun(Dir) -> calulate_dir_size(Dir, Files) end, Dirs).
@@ -76,3 +94,9 @@ add_file_size_to_dir(#node{size = Size}, #node{size = PrevSize} = Dir) ->
 
 add_small_dir_size(#node{size = Size}, Acc) when Size =< 100000 -> Size + Acc;
 add_small_dir_size(#node{}, Acc) -> Acc.
+
+pick_dir(Dirs, Cutoff) ->
+    lists:search(fun(#node{size = Size}) -> Size > Cutoff end,
+        lists:sort(fun sort_dirs/2, Dirs)).
+
+sort_dirs(#node{size = A}, #node{size = B}) -> A =< B.
